@@ -28,6 +28,7 @@ sys.path.extend([baseLoc+'gimpenv/lib/python3.9', baseLoc+'gimpenv/lib/python3.9
 
 sys.path.extend([baseLoc+'gimpenv/Lib', baseLoc+'gimpenv/Lib/site-packages', baseLoc+'gimpenv/Lib/site-packages/setuptools'])
 
+# pip install numpy, torch, torchvision,PIL, opencv-python
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -39,21 +40,17 @@ import Ldf.test
 import Ldf.dataset
 
 
-# pip install numpy, torch, torchvision,PIL, opencv-python
-
-
-
 def N_(message): return message
 
 def remove_background(procedure, run_mode, image, drawable, args, data):
 
-    print(os.path.dirname(__file__))
+    image.undo_group_start()
 
     file1 = Gio.file_new_for_path(os.path.join(tempfile.gettempdir(), "image_in.png"))
     file2 = Gio.file_new_for_path(os.path.join(tempfile.gettempdir(), "image_out.png"))
  
     #create Input for LDF
-    Gimp.file_save(Gimp.RunMode.NONINTERACTIVE,image,[drawable],file1)
+    Gimp.file_save(Gimp.RunMode.NONINTERACTIVE, image, [drawable], file1)
 
     #Interference
     Ldf.test.Test(Ldf.dataset, LDF, "./").save()
@@ -62,16 +59,14 @@ def remove_background(procedure, run_mode, image, drawable, args, data):
     result_layer = Gimp.file_load_layer(Gimp.RunMode.NONINTERACTIVE, image, file2)
     mask = result_layer.create_mask(5)
     drawable.add_mask(mask)
+
     image.undo_group_end()
-
     Gimp.displays_flush()
-
 
     return procedure.new_return_values(Gimp.PDBStatusType.SUCCESS, GLib.Error())
 
 
-
-class RemoveBG(Gimp.PlugIn):
+class BackgroundRemover(Gimp.PlugIn):
 
     ## GimpPlugIn virtual methods ##
     def do_query_procedures(self):
@@ -92,14 +87,13 @@ class RemoveBG(Gimp.PlugIn):
                 N_("Easy way to remove any background from an image"),
                 "test",  
                 name)
-            procedure.set_menu_label(N_("Backgound Remover"))
+            procedure.set_menu_label(N_("Background Remover"))
             procedure.set_attribution("Manuel Vogel",
                                       "Manuel Vogel",
                                       "2021")
-            procedure.add_menu_path("<Image>/Filters/RemoveBackgound")
+            procedure.add_menu_path("<Image>/Filters/RemoveBackground")
 
         return procedure
         
  
-
-Gimp.main(RemoveBG.__gtype__, sys.argv)
+Gimp.main(BackgroundRemover.__gtype__, sys.argv)

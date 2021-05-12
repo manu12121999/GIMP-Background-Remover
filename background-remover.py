@@ -26,12 +26,12 @@ sys.path.extend([baseLoc+'gimpenv/lib/python3.9', baseLoc+'gimpenv/lib/python3.9
 
 sys.path.extend([baseLoc+'gimpenv/Lib', baseLoc+'gimpenv/Lib/site-packages', baseLoc+'gimpenv/Lib/site-packages/setuptools'])
 
-# pip install numpy, torch, torchvision,pillow, opencv-python
+# pip install numpy, torch, pillow, opencv-python
 import numpy as np
 import torch
 import torch.nn.functional as F
 from PIL import Image
-from torchvision import transforms
+#from torchvision import transforms
 
 from Ldf.net import LDF
 import Ldf.test

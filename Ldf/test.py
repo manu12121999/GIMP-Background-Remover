@@ -16,18 +16,18 @@ from torch.utils.data import DataLoader
 from Ldf.net import LDF
 
 class Test(object):
-    def __init__(self, Dataset, Network, Path):
+    def __init__(self, Dataset, Network, Path, image):
         ## dataset
         #self.cfg    = Dataset.Config(datapath=".", snapshot='./model-40', mode='test')
         self.cfg    = Dataset.Config(datapath=".", snapshot= os.path.join(os.path.dirname(__file__), 'model-40'), mode='test')
-        self.data   = Dataset.Data(self.cfg)
+        self.data   = Dataset.Data(self.cfg, image)
         self.loader = DataLoader(self.data, batch_size=1, shuffle=False, num_workers=0)
         ## network
         self.net    = Network(self.cfg)
         self.net.train(False)
         #self.net.cuda()
 
-    def save(self):
+    def inference(self):
         with torch.no_grad():
             for image, (H, W), name in self.loader:
                 #image, shape  = image.cuda().float(), (H, W)#
@@ -37,7 +37,7 @@ class Test(object):
                 pred = torch.sigmoid(out[0,0]).cpu().numpy()*255
             
                 cv2.imwrite(os.path.join(tempfile.gettempdir(), "image_out.png"), np.round(pred))
-
+        return np.round(pred)
 
 
 if __name__=='__main__':

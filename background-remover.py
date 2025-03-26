@@ -50,7 +50,7 @@ class BackgroundRemover(Gimp.PlugIn):
 
         procedure.set_documentation(
             "Easy way to remove any background from an image",
-            "Easy way to remove any background from an image. Works Offline using the background-removal network LDF",  
+            "Easy way to remove any background from an image",  
             None)
         procedure.set_menu_label("Offline Background Remover")
         procedure.set_attribution("Manuel Vogel",
@@ -63,26 +63,40 @@ class BackgroundRemover(Gimp.PlugIn):
     def remove_background(self, procedure, run_mode, image, drawables, config, data):
         image.undo_group_start()
 
-        file1 = Gio.file_new_for_path(os.path.join(tempfile.gettempdir(), "image_in.png"))
+        # file1 = Gio.file_new_for_path(os.path.join(tempfile.gettempdir(), "image_in.png"))
         file2 = Gio.file_new_for_path(os.path.join(tempfile.gettempdir(), "image_out.png"))
         #file1 = Gimp.temp_file('png')
         #file2 = Gimp.temp_file('png')
         
-        GimpUi.init("python-plugin-offline-background-remover")
+        GimpUi.init("esfjssdjfjjdsj")
             
         dialog = GimpUi.ProcedureDialog.new(procedure, config, "Hello World")
         dialog.fill(None)
-    
+        
+        drawables[0].remove_mask(1)
 
         #create Input for LDF
-        Gimp.file_save(Gimp.RunMode.NONINTERACTIVE, image, file1, None)
+        layer = drawables[0]
+        
+        w,h = layer.get_width(), layer.get_height()
+        rect = Gegl.Rectangle.new(0, 0, w, h)  # layer is of size 2000, 2000
+        buffer = layer.get_buffer()
+        buffer_bytes = buffer.get(rect, 1.0, None, Gegl.AbyssPolicy(0))
+        # https://gitlab.gnome.org/GNOME/gimp/-/issues/8686
+        image_arr = np.frombuffer(buffer_bytes, dtype=np.uint8).reshape((h,w,-1))
+        print("ARRAY", image_arr, image_arr.shape)
 
         #Inference
         try:
-            Ldf.test.Test(Ldf.dataset, LDF, "./").save()
+            result_layer_arr = Ldf.test.Test(Ldf.dataset, LDF, "./", image_arr[:,:,:3]).inference()
         except FileNotFoundError:
             return procedure.new_return_values (Gimp.PDBStatusType.CALLING_ERROR,
                                           GLib.Error(f"Weights not found. Please download all files described in the README"))
+        
+        #print(result_layer_arr.shape)
+        #result_layer_arr_4channels = np.repeat(result_layer_arr[:, :, np.newaxis], 4, axis=2)
+        #buffer.set(rect, TODO , result_layer_arr_4channels.tobytes())
+        #buffer.flush()
 
         #output
         result_layer = Gimp.file_load_layer(Gimp.RunMode.NONINTERACTIVE, image, file2)

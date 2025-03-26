@@ -88,17 +88,18 @@ class Config(object):
 
 ########################### Dataset Class ###########################
 class Data(Dataset):
-    def __init__(self, cfg):
+    def __init__(self, cfg, image):
         self.cfg        = cfg
         self.normalize  = Normalize(mean=cfg.mean, std=cfg.std)
         self.randomcrop = RandomCrop()
         self.randomflip = RandomFlip()
         self.resize     = Resize(352, 352)
         self.totensor   = ToTensor()
+        self.image = image
 
 
     def __getitem__(self, idx):
-        image = cv2.imread(os.path.join(tempfile.gettempdir(), "image_in.png"))[:,:,::-1].astype(np.float32)
+        image = self.image.astype(np.float32)
         shape = image.shape[:2]
         image = self.normalize(image)
         image = self.resize(image)

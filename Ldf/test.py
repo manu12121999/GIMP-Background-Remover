@@ -21,7 +21,7 @@ class Test(object):
         #self.cfg    = Dataset.Config(datapath=".", snapshot='./model-40', mode='test')
         self.cfg    = Dataset.Config(datapath=".", snapshot= os.path.join(os.path.dirname(__file__), 'model-40'), mode='test')
         self.data   = Dataset.Data(self.cfg)
-        self.loader = DataLoader(self.data, batch_size=1, shuffle=False, num_workers=2)
+        self.loader = DataLoader(self.data, batch_size=1, shuffle=False, num_workers=0)
         ## network
         self.net    = Network(self.cfg)
         self.net.train(False)

@@ -2,7 +2,6 @@
 #coding=utf-8
 
 import os.path 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -59,7 +58,7 @@ class ResNet(nn.Module):
         self.layer2   = self.make_layer(128, 4, stride=2, dilation=1)
         self.layer3   = self.make_layer(256, 6, stride=2, dilation=1)
         self.layer4   = self.make_layer(512, 3, stride=2, dilation=1)
-        self.initialize()
+        # self.initialize()
 
     def make_layer(self, planes, blocks, stride, dilation):
         downsample    = nn.Sequential(nn.Conv2d(self.inplanes, planes*4, kernel_size=1, stride=stride, bias=False), nn.BatchNorm2d(planes*4))
@@ -211,6 +210,6 @@ class LDF(nn.Module):
 
     def initialize(self):
         if self.cfg.snapshot:
-            self.load_state_dict(torch.load(self.cfg.snapshot,map_location='cpu'))
+            self.load_state_dict(torch.load(self.cfg.snapshot,map_location='cpu'), strict=True)
         else:
             weight_init(self)

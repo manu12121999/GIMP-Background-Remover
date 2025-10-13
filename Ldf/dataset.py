@@ -20,29 +20,6 @@ class Normalize(object):
             return image
         return image, mask/255, body/255, detail/255
 
-class RandomCrop(object):
-    def __call__(self, image, mask=None, body=None, detail=None):
-        H,W,_   = image.shape
-        randw   = np.random.randint(W/8)
-        randh   = np.random.randint(H/8)
-        offseth = 0 if randh == 0 else np.random.randint(randh)
-        offsetw = 0 if randw == 0 else np.random.randint(randw)
-        p0, p1, p2, p3 = offseth, H+offseth-randh, offsetw, W+offsetw-randw
-        if mask is None:
-            return image[p0:p1,p2:p3, :]
-        return image[p0:p1,p2:p3, :], mask[p0:p1,p2:p3], body[p0:p1,p2:p3], detail[p0:p1,p2:p3]
-
-class RandomFlip(object):
-    def __call__(self, image, mask=None, body=None, detail=None):
-        if np.random.randint(2)==0:
-            if mask is None:
-                return image[:,::-1,:].copy()
-            return image[:,::-1,:].copy(), mask[:, ::-1].copy(), body[:, ::-1].copy(), detail[:, ::-1].copy()
-        else:
-            if mask is None:
-                return image
-            return image, mask, body, detail
-
 class Resize(object):
     def __init__(self, H, W):
         self.H = H
@@ -91,8 +68,6 @@ class Data(Dataset):
     def __init__(self, cfg):
         self.cfg        = cfg
         self.normalize  = Normalize(mean=cfg.mean, std=cfg.std)
-        self.randomcrop = RandomCrop()
-        self.randomflip = RandomFlip()
         self.resize     = Resize(352, 352)
         self.totensor   = ToTensor()
 

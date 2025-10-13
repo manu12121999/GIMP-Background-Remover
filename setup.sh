@@ -9,7 +9,7 @@ source gimpenv/bin/activate
 
 python3 -m pip install numpy
 python3 -m pip install pillow
-python3 -m pip install torch==2.5 --index-url https://download.pytorch.org/whl/cpu
+python3 -m pip install torch --index-url https://download.pytorch.org/whl/cpu
 #python3 -m pip install torchvision
 python3 -m pip install opencv-python
 deactivate

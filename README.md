@@ -22,7 +22,6 @@ A small gimp plugin to easily remove the background of an image with [LDF](https
 
 <details><summary><b>For other GIMP installations</b></summary>
 
-
 3. Install python
 
 4. make the python file executable and install dependencies with: 
@@ -30,10 +29,6 @@ A small gimp plugin to easily remove the background of an image with [LDF](https
 ```
 bash ./setup.sh
 ```
-
-5. Download the weights and put both in the Ldf directory:
-
-    [Trained model weights](https://drive.google.com/file/d/1qGQ6wSWTFqt8oy_YT3_aj-_pdlf5vKWL/view?usp=sharing)
 
  </details>
 

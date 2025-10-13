@@ -14,6 +14,7 @@ python3 -m pip install torch --index-url https://download.pytorch.org/whl/cpu
 python3 -m pip install opencv-python
 deactivate
 
+wget -O Ldf/model-40 https://huggingface.co/ManuelVogel12/LDF_weights/resolve/main/model-40
 
 # CHECK IF THE FOLDER NAMES ARE CORRECT
 SCRIPT_PATH="$(realpath "$0")"

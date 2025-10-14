@@ -66,6 +66,7 @@ class BackgroundRemover(Gimp.PlugIn):
             procedure.add_menu_path("<Image>/Filters/Remove_BG/")
             procedure.add_boolean_argument("info", "This might take 5 minutes, please wait until this window closes", "info",
                                        True, GObject.ParamFlags.READWRITE)
+            # procedure.add_double_argument("progress_bar", "Progress bar", "progress_bar", 0.0, 100.0, 0.0, GObject.ParamFlags.READWRITE)
         return procedure
     
     def install_remove_background(self, procedure, run_mode, image, drawables, config, data):
@@ -74,29 +75,40 @@ class BackgroundRemover(Gimp.PlugIn):
         GimpUi.init("python-plugin-offline-background-remover")
             
         dialog = GimpUi.ProcedureDialog.new(procedure, config)
-        info = GimpUi.Frame()
         dialog.fill(None)
         if not dialog.run():
-                dialog.destroy()
-                return procedure.new_return_values(Gimp.PDBStatusType.CANCEL, GLib.Error())
+            dialog.destroy()
+            return procedure.new_return_values(Gimp.PDBStatusType.CANCEL, GLib.Error())
         
-        venv_dir = os.path.dirname(os.path.realpath(__file__))+'/'+ "gimpenv"
+        # config.set_property("progress_bar", 2.0)
+        
+        base_path = os.path.dirname(os.path.realpath(__file__))
+        venv_dir = base_path +'/'+ "gimpenv"
         builder = venv.EnvBuilder(with_pip=True)
         builder.create(venv_dir)
         
         python_exe = os.path.join(venv_dir, "bin", "python")
+        
+        try:
+            subprocess.run([python_exe, "-m", "pip", "install", "--upgrade", "pip"], check=True)
+            # config.set_property("progress_bar", 10.0)
+            subprocess.run([
+                python_exe, "-m", "pip", "install",
+                "numpy", "pillow", "opencv-python",
+            ], check=True)
+            # config.set_property("progress_bar", 15.0)
+            subprocess.run([
+                python_exe, "-m", "pip", "install",
+                "torch", "--index-url", "https://download.pytorch.org/whl/cpu", "--force-reinstall"
+            ], check=True)
+            # config.set_property("progress_bar", 75.0)
 
-        subprocess.check_call([python_exe, "-m", "pip", "install", "--upgrade", "pip"])
-        subprocess.check_call([
-            python_exe, "-m", "pip", "install",
-            "numpy", "pillow", "opencv-python",
-        ])
-        subprocess.check_call([
-            python_exe, "-m", "pip", "install",
-            "torch", "--index-url", "https://download.pytorch.org/whl/cpu", "--force-reinstall"
-        ])
-
-        subprocess.run(["curl", "-L", "-o", os.path.join("Ldf", "model-40"), "https://huggingface.co/ManuelVogel12/LDF_weights/resolve/main/model-40"], check=True)
+            subprocess.run(["curl", "-L", "-o",  os.path.join(base_path, "Ldf", "model-40"),  "https://huggingface.co/ManuelVogel12/LDF_weights/resolve/main/model-40"
+            ], check=True)
+            # config.set_property("progress_bar", 100.0)
+        except subprocess.CalledProcessError as e:
+            return procedure.new_return_values (Gimp.PDBStatusType.CALLING_ERROR,
+                                          GLib.Error(f"Installation was not fully successful, please check the console output or rerun\nThe Error is:\n{e}"))
         return procedure.new_return_values(Gimp.PDBStatusType.SUCCESS, None)
     
     def remove_background(self, procedure, run_mode, image, drawables, config, data):

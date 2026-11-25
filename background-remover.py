@@ -5,7 +5,7 @@ import tempfile
 import importlib
 
 
-# This Plugin is only for GIMP Version >= 3.0.0 and linux
+# This Plugin is only for GIMP Version >= 3.0.0 and Windows
 import gi
 gi.require_version('Gimp', '3.0')
 from gi.repository import Gimp
@@ -20,6 +20,58 @@ baseLoc = os.path.dirname(os.path.realpath(__file__))+'/'
 for version in range(6,20):
     sys.path.extend([baseLoc+f'gimpenv/lib/python3.{version}', baseLoc+f'gimpenv/lib/python3.{version}/site-packages', baseLoc+f'gimpenv/lib/python3.{version}/site-packages/setuptools'])
 sys.path.extend([baseLoc+'gimpenv/Lib', baseLoc+'gimpenv/Lib/site-packages', baseLoc+'gimpenv/Lib/site-packages/setuptools'])
+
+
+def find_windows_python312():
+    import shutil
+    import subprocess
+    import winreg
+
+    candidates = []
+    registry_path = r"SOFTWARE\Python\PythonCore\3.12\InstallPath"
+    registry_views = [
+        winreg.KEY_READ,
+        winreg.KEY_READ | winreg.KEY_WOW64_64KEY,
+        winreg.KEY_READ | winreg.KEY_WOW64_32KEY,
+    ]
+    for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        for access in registry_views:
+            try:
+                with winreg.OpenKey(hive, registry_path, 0, access) as key:
+                    try:
+                        candidates.append(winreg.QueryValueEx(key, "ExecutablePath")[0])
+                    except OSError:
+                        candidates.append(os.path.join(winreg.QueryValue(key, None), "python.exe"))
+            except OSError:
+                pass
+
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    program_files = os.environ.get("ProgramFiles")
+    candidates.extend([
+        r"C:\Python312\python.exe",
+        os.path.join(local_app_data, "Programs", "Python", "Python312", "python.exe") if local_app_data else "",
+        os.path.join(program_files, "Python312", "python.exe") if program_files else "",
+        shutil.which("python.exe") or "",
+        shutil.which("python") or "",
+    ])
+
+    checked = set()
+    for candidate in candidates:
+        if not candidate or os.path.normcase(candidate) in checked or not os.path.isfile(candidate):
+            continue
+        checked.add(os.path.normcase(candidate))
+        try:
+            result = subprocess.run(
+                [candidate, "-c", "import struct, sys; print(sys.version_info[0], sys.version_info[1], struct.calcsize('P') * 8)"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except OSError:
+            continue
+        if result.returncode == 0 and result.stdout.strip() == "3 12 64":
+            return candidate
+    return None
 
 
 class BackgroundRemover(Gimp.PlugIn):
@@ -70,7 +122,6 @@ class BackgroundRemover(Gimp.PlugIn):
         return procedure
     
     def install_remove_background(self, procedure, run_mode, image, drawables, config, data):
-        import venv
         import subprocess
         GimpUi.init("python-plugin-offline-background-remover")
             
@@ -84,64 +135,120 @@ class BackgroundRemover(Gimp.PlugIn):
         
         base_path = os.path.dirname(os.path.realpath(__file__))
         venv_dir = base_path +'/'+ "gimpenv"
-        builder = venv.EnvBuilder(with_pip=True)
-        builder.create(venv_dir)
-        
-        python_exe = os.path.join(venv_dir, "bin", "python")
+        base_python = find_windows_python312()
+        if not base_python:
+            return procedure.new_return_values(
+                Gimp.PDBStatusType.CALLING_ERROR,
+                GLib.Error("Could not find 64-bit Python 3.12. Install it from python.org, then rerun the installer.")
+            )
+        python_exe = os.path.join(venv_dir, "Scripts", "python.exe")
+        model_path = os.path.join(base_path, "Ldf", "model-40")
+        powershell_exe = os.path.join(
+            os.environ.get("SystemRoot", r"C:\Windows"),
+            "System32", "WindowsPowerShell", "v1.0", "powershell.exe"
+        )
+        trusted_hosts = [
+            "--trusted-host", "pypi.org",
+            "--trusted-host", "pypi.python.org",
+            "--trusted-host", "files.pythonhosted.org",
+            "--trusted-host", "download.pytorch.org",
+        ]
         
         try:
-            subprocess.run([python_exe, "-m", "pip", "install", "--upgrade", "pip"], check=True)
+            download_env = os.environ.copy()
+            download_env["LDF_MODEL_URL"] = "https://huggingface.co/ManuelVogel12/LDF_weights/resolve/main/model-40"
+            download_env["LDF_MODEL_OUTPUT"] = model_path
+            subprocess.run(
+                [powershell_exe, "-NoProfile", "-NonInteractive", "-Command",
+                 "$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri $env:LDF_MODEL_URL -OutFile $env:LDF_MODEL_OUTPUT"],
+                check=True,
+                capture_output=True,
+                text=True,
+                env=download_env,
+            )
+
+            subprocess.run([base_python, "-m", "venv", "--clear", venv_dir],
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            
             # config.set_property("progress_bar", 10.0)
-            subprocess.run([
-                python_exe, "-m", "pip", "install",
-                "numpy", "pillow", "opencv-python",
-            ], check=True)
+            subprocess.run([python_exe, "-m", "pip", "install", "--upgrade", "pip", *trusted_hosts],
+            check=True,
+            capture_output=True,
+            text=True
+        )
             # config.set_property("progress_bar", 15.0)
             subprocess.run([
-                python_exe, "-m", "pip", "install",
-                "torch", "--index-url", "https://download.pytorch.org/whl/cpu", "--force-reinstall"
-            ], check=True)
+                python_exe, "-m", "pip", "install", "--only-binary=:all:", *trusted_hosts,
+                "numpy", "pillow", "opencv-python",
+            ],
+            check=True,
+            capture_output=True,
+            text=True
+        )
             # config.set_property("progress_bar", 75.0)
-
-            subprocess.run(["curl", "-L", "-o",  os.path.join(base_path, "Ldf", "model-40"),  "https://huggingface.co/ManuelVogel12/LDF_weights/resolve/main/model-40"
-            ], check=True)
+            subprocess.run([
+                python_exe, "-m", "pip", "install", "--only-binary=:all:", *trusted_hosts,
+                "torch", "--index-url", "https://download.pytorch.org/whl/cpu", "--force-reinstall"
+            ],
+            check=True,
+            capture_output=True,
+            text=True
+        )
             # config.set_property("progress_bar", 100.0)
         except subprocess.CalledProcessError as e:
             return procedure.new_return_values (Gimp.PDBStatusType.CALLING_ERROR,
-                                          GLib.Error(f"Installation was not fully successful, please check the console output or rerun\nThe Error is:\n{e}"))
+                                          GLib.Error(f"Installation was not fully successful, please check the console output or rerun\nThe Error is:\n{e}. \n{e.stderr or e.stdout}"))
+        except FileNotFoundError as e:
+            return procedure.new_return_values(
+                Gimp.PDBStatusType.CALLING_ERROR,
+                GLib.Error(f"Could not start Windows PowerShell: {e}. Verify PowerShell is available, then rerun the installer.")
+            )
         return procedure.new_return_values(Gimp.PDBStatusType.SUCCESS, None)
     
     def remove_background(self, procedure, run_mode, image, drawables, config, data):
-        # pip install numpy, torch, pillow, opencv-python
-        # import numpy as np
-        import torch
-        import torch.nn.functional as F
-        # from PIL import Image
-        #from torchvision import transforms
+        import subprocess
 
-        from Ldf.net import LDF
-        import Ldf.test
-        import Ldf.dataset
         image.undo_group_start()
 
         file1 = Gio.file_new_for_path(os.path.join(tempfile.gettempdir(), "image_in.png"))
         file2 = Gio.file_new_for_path(os.path.join(tempfile.gettempdir(), "image_out.png"))
-        #file1 = Gimp.temp_file('png')
-        #file2 = Gimp.temp_file('png')
-        
+
         GimpUi.init("python-plugin-offline-background-remover")
 
-        #create Input for LDF
+        # Create Input for LDF
         Gimp.file_save(Gimp.RunMode.NONINTERACTIVE, image, file1, None)
 
-        #Inference
-        try:
-            Ldf.test.Test(Ldf.dataset, LDF, "./").save()
-        except FileNotFoundError:
-            return procedure.new_return_values (Gimp.PDBStatusType.CALLING_ERROR,
-                                          GLib.Error(f"Weights not found. Please download all files described in the README"))
+        # Inference via external Windows Python 3.12
+        plugin_dir = os.path.dirname(os.path.abspath(__file__))
+        runner_script = os.path.join(plugin_dir, "run_ldf.py")
+        python_exe = os.path.join(plugin_dir, "gimpenv", "Scripts", "python.exe")
 
-        #output
+        try:
+            subprocess.run(
+                [python_exe, runner_script],
+                cwd=plugin_dir,
+                check=True,
+                capture_output=True,
+                text=True
+            )
+        except subprocess.CalledProcessError as e:
+            image.undo_group_end()
+            err_msg = e.stderr.strip() or e.stdout.strip() or "Unknown inference error."
+            return procedure.new_return_values(
+                Gimp.PDBStatusType.CALLING_ERROR,
+                GLib.Error(f"Inference failed:\n{err_msg}")
+            )
+        except FileNotFoundError:
+            image.undo_group_end()
+            return procedure.new_return_values(
+                Gimp.PDBStatusType.CALLING_ERROR,
+                GLib.Error("Could not find gimpenv\\Scripts\\python.exe or run_ldf.py. Run the installer and verify Python 3.12 is installed.")
+            )
+
+        # Output
         result_layer = Gimp.file_load_layer(Gimp.RunMode.NONINTERACTIVE, image, file2)
         mask = result_layer.create_mask(5)
         drawables[0].add_mask(mask)
@@ -150,6 +257,5 @@ class BackgroundRemover(Gimp.PlugIn):
         Gimp.displays_flush()
 
         return procedure.new_return_values(Gimp.PDBStatusType.SUCCESS, None)
-        
  
 Gimp.main(BackgroundRemover.__gtype__, sys.argv)
